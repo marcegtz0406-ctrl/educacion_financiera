@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#07111e">
+  <title>Pulsador: Educación Financiera (Estudio A)</title>
+  <link rel="stylesheet" href="buzzer.css">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;900&family=Oswald:wght@600;700&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div id="buzzer-app">
+    <!-- PANTALLA 1: REGISTRO DEL PARTICIPANTE -->
+    <div id="screen-register" class="screen">
+      <div class="register-card">
+        <div class="register-badge">🎬 ESTUDIO A: EL SET DE CINE</div>
+        <h2>Pulsador Multijugador</h2>
+        <p>Escribe tu nombre o el de tu equipo para entrar a la producción:</p>
+
+        <div class="register-branches-hint">
+          <span>⚠️ <strong>Branch A:</strong> Gastar en deseos impulsivos</span>
+          <span>✅ <strong>Branch B:</strong> Cubrir necesidades básicas</span>
+        </div>
+
+        <form id="form-register">
+          <input 
+            type="text" 
+            id="input-team-name" 
+            placeholder="Ej: Equipo 1 / Cineastas" 
+            maxlength="24" 
+            autocomplete="off" 
+            required
+          >
+          <button type="submit" class="btn-join">¡Entrar a la Producción! 🎬</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- PANTALLA 2: PULSADOR ACTIVO -->
+    <div id="screen-buzzer" class="screen hidden">
+      <!-- Header Móvil -->
+      <header class="buzzer-header">
+        <div class="team-badge">
+          <div id="header-avatar" class="avatar">EQ</div>
+          <div class="team-meta">
+            <span id="header-team-name" class="team-title">Mi Equipo</span>
+            <span id="header-score" class="score-display">0 pts</span>
+          </div>
+        </div>
+        <div class="conn-badge">
+          <span class="live-dot"></span>
+          <span>En vivo</span>
+        </div>
+      </header>
+
+      <!-- Área Central del Pulsador -->
+      <main class="buzzer-main">
+        <div class="prompt-box">
+          <span id="prompt-status" class="prompt-text">Atento a la pantalla del proyector...</span>
+        </div>
+
+        <!-- Botón Gigante del Buzzer -->
+        <button id="main-buzzer-btn" class="big-buzzer state-idle" disabled>
+          <div class="buzzer-inner">
+            <span id="buzzer-icon" class="buzzer-symbol">⏸️</span>
+            <span id="buzzer-label" class="buzzer-label">ESPERA</span>
+          </div>
+        </button>
+
+        <div id="reaction-notice" class="reaction-notice hidden">
+          <span id="reaction-text"></span>
+        </div>
+      </main>
+
+      <!-- Footer Info -->
+      <footer class="buzzer-footer">
+        <span>Jeopardy: Branch A vs Branch B • UACM</span>
+      </footer>
+    </div>
+
+    <!-- PANTALLA 3: PODIO FINAL -->
+    <div id="screen-podium" class="screen hidden">
+      <div class="podium-result-card">
+        <div id="podium-trophy" class="result-trophy">🏆</div>
+        <h2 id="podium-status-title">¡PRODUCCIÓN FINALIZADA!</h2>
+        <div id="podium-my-rank" class="my-rank-badge rank-gold">1º LUGAR</div>
+        <p id="podium-my-team" class="my-team-name">Mi Equipo</p>
+        <p id="podium-my-score" class="my-team-score">1,500 pts</p>
+        <div id="podium-my-msg" class="podium-msg">¡Demostraron la mejor disciplina y criterio en Educación Financiera!</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Inicialización de Socket.IO con reconexión persistente e infinita
+    const socket = io({
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000
+    });
+
+    // Estado local
+    let myTeam = null;
+    let currentBuzzerState = 'idle';
+
+    // Elementos DOM
+    const screenRegister = document.getElementById('screen-register');
+    const screenBuzzer = document.getElementById('screen-buzzer');
+    const screenPodium = document.getElementById('screen-podium');
+    const formRegister = document.getElementById('form-register');
+    const inputTeamName = document.getElementById('input-team-name');
+
+    const headerAvatar = document.getElementById('header-avatar');
+    const headerTeamName = document.getElementById('header-team-name');
+    const headerScore = document.getElementById('header-score');
+
+    const promptStatus = document.getElementById('prompt-status');
+    const mainBuzzerBtn = document.getElementById('main-buzzer-btn');
+    const buzzerIcon = document.getElementById('buzzer-icon');
+    const buzzerLabel = document.getElementById('buzzer-label');
+    const reactionNotice = document.getElementById('reaction-notice');
+    const reactionText = document.getElementById('reaction-text');
+
+    // Recuperar nombre previo de localStorage
+    const savedName = localStorage.getItem('jeopardy_finanzas_team');
+    if (savedName) {
+      inputTeamName.value = savedName;
+    }
+
+    // Auto-reconnect on socket reconnect if already registered
+    socket.on('connect', () => {
+      if (myTeam && myTeam.name) {
+        socket.emit('join-game', { name: myTeam.name });
+      }
+    });
+
+    // Registro del participante
+    formRegister.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = inputTeamName.value.trim();
+      if (!name) return;
+
+      localStorage.setItem('jeopardy_finanzas_team', name);
+      // Emitir join-game para registro
+      socket.emit('join-game', { name });
+    });
+
+    socket.on('team-registered', (data) => {
+      myTeam = data.team;
+      headerTeamName.textContent = myTeam.name;
+      headerScore.textContent = `${myTeam.score} pts`;
+      headerAvatar.textContent = myTeam.name.substring(0, 2).toUpperCase();
+      headerAvatar.style.backgroundColor = myTeam.color || '#0080ff';
+
+      screenRegister.classList.add('hidden');
+      screenBuzzer.classList.remove('hidden');
+
+      if (data.gameState?.buzzerState === 'active' && !data.gameState?.isAttempted) {
+        setBuzzerActive();
+      } else {
+        setBuzzerIdle('Atento a la pantalla del proyector...');
+      }
+    });
+
+    // Actualización de marcadores
+    socket.on('teams-updated', (teams) => {
+      if (myTeam && teams[myTeam.id]) {
+        myTeam = teams[myTeam.id];
+        headerScore.textContent = `${myTeam.score} pts`;
+      }
+    });
+
+    // Apertura de pregunta
+    socket.on('question-opened', (data) => {
+      setBuzzerIdle(`Dilema por $${data.puntos} en pantalla...`);
+    });
+
+    // Activación del Buzzer por el docente
+    socket.on('buzzer-activated', (data) => {
+      const attempted = data.attemptedTeams || [];
+      if (myTeam && attempted.includes(myTeam.id)) {
+        setBuzzerLocked('Tu equipo ya intentó este dilema (Rebote bloqueado).');
+      } else {
+        setBuzzerActive();
+      }
+    });
+
+    // Función para pulsar el buzzer con vibración táctil
+    function pressBuzzer() {
+      if (currentBuzzerState === 'active') {
+        if (navigator.vibrate) {
+          try { navigator.vibrate([100]); } catch (e) {}
+        }
+        socket.emit('press-buzzer');
+      }
+    }
+
+    mainBuzzerBtn.addEventListener('click', pressBuzzer);
+    mainBuzzerBtn.addEventListener('touchstart', (e) => {
+      if (currentBuzzerState === 'active') {
+        e.preventDefault();
+        pressBuzzer();
+      }
+    }, { passive: false });
+
+    // Cuando un equipo pulsa
+    socket.on('team-buzzed', (buzzedData) => {
+      if (myTeam && buzzedData.teamId === myTeam.id) {
+        setBuzzerWinner(buzzedData.reactionMs);
+        if (navigator.vibrate) {
+          try { navigator.vibrate([150, 60, 200]); } catch (e) {}
+        }
+      } else {
+        setBuzzerLocked(`¡Pulsó ${buzzedData.teamName}!`);
+      }
+    });
+
+    // Calificación de respuesta
+    socket.on('answer-judged', (data) => {
+      if (data.correct) {
+        setBuzzerIdle('¡Dilema completado! Esperando siguiente...');
+      } else {
+        if (myTeam && data.teamId === myTeam.id) {
+          setBuzzerLocked('Respuesta incorrecta. Esperando rebote...');
+        } else {
+          setBuzzerIdle('Respuesta fallida. Atento al REBOTE...');
+        }
+      }
+    });
+
+    // Pregunta cerrada
+    socket.on('question-closed', () => {
+      setBuzzerIdle('Volviendo al tablero de producción...');
+    });
+
+    // Final Jeopardy
+    socket.on('final-jeopardy-started', () => {
+      setBuzzerIdle('¡RONDA FINAL JEOPARDY: El Corte Final!');
+    });
+
+    // Cierre de partida y Podio
+    socket.on('game-ended', ({ ranking }) => {
+      if (!myTeam || !ranking) return;
+
+      const found = ranking.find(t => t.id === myTeam.id || t.name.toLowerCase() === myTeam.name.toLowerCase());
+      const myRank = found ? found.rank : '?';
+      const myScore = found ? found.score : myTeam.score;
+
+      screenRegister.classList.add('hidden');
+      screenBuzzer.classList.add('hidden');
+
+      const podiumTrophy = document.getElementById('podium-trophy');
+      const podiumStatusTitle = document.getElementById('podium-status-title');
+      const podiumMyRank = document.getElementById('podium-my-rank');
+      const podiumMyTeam = document.getElementById('podium-my-team');
+      const podiumMyScore = document.getElementById('podium-my-score');
+      const podiumMyMsg = document.getElementById('podium-my-msg');
+
+      podiumMyTeam.textContent = myTeam.name;
+      podiumMyScore.textContent = `${myScore} pts`;
+      podiumMyRank.textContent = `${myRank}º LUGAR`;
+
+      if (myRank === 1) {
+        podiumTrophy.textContent = '🥇';
+        podiumStatusTitle.textContent = '¡CAMPEONES DE LA PRODUCCIÓN!';
+        podiumMyMsg.textContent = '¡Excelente aplicación del criterio Branch B! Aseguraron la solvencia y el éxito del proyecto.';
+        podiumMyRank.className = 'my-rank-badge rank-gold';
+      } else if (myRank === 2) {
+        podiumTrophy.textContent = '🥈';
+        podiumStatusTitle.textContent = '¡SUBCAMPEONES!';
+        podiumMyMsg.textContent = '¡Gran demostración de disciplina y trabajo en equipo en el set!';
+        podiumMyRank.className = 'my-rank-badge rank-silver';
+      } else if (myRank === 3) {
+        podiumTrophy.textContent = '🥉';
+        podiumStatusTitle.textContent = '¡TERCER LUGAR!';
+        podiumMyMsg.textContent = '¡Muy buena participación en el análisis de decisiones financieras!';
+        podiumMyRank.className = 'my-rank-badge rank-bronze';
+      } else {
+        podiumTrophy.textContent = '🎖️';
+        podiumStatusTitle.textContent = '¡GRAN PARTICIPACIÓN!';
+        podiumMyMsg.textContent = '¡Gracias por participar y reflexionar en la activación interactiva de Estudio A!';
+        podiumMyRank.className = 'my-rank-badge rank-other';
+      }
+
+      screenPodium.classList.remove('hidden');
+
+      if (navigator.vibrate) {
+        try { navigator.vibrate([150, 80, 150, 80, 300]); } catch (e) {}
+      }
+    });
+
+    // Reinicio de partida
+    socket.on('game-reset', () => {
+      screenPodium.classList.add('hidden');
+      screenBuzzer.classList.remove('hidden');
+      setBuzzerIdle('¡Nueva partida iniciada! Atento a la pantalla...');
+    });
+
+    // Estados del pulsador
+    function setBuzzerIdle(msg = 'Atento a la pantalla del proyector...') {
+      currentBuzzerState = 'idle';
+      mainBuzzerBtn.className = 'big-buzzer state-idle';
+      mainBuzzerBtn.disabled = true;
+      buzzerIcon.textContent = '⏸️';
+      buzzerLabel.textContent = 'ESPERA';
+      promptStatus.textContent = msg;
+      reactionNotice.classList.add('hidden');
+    }
+
+    function setBuzzerActive() {
+      currentBuzzerState = 'active';
+      mainBuzzerBtn.className = 'big-buzzer state-active';
+      mainBuzzerBtn.disabled = false;
+      buzzerIcon.textContent = '⚡';
+      buzzerLabel.textContent = '¡PULSA!';
+      promptStatus.textContent = '¡Buzzer habilitado! ¡PULSA AHORA!';
+      reactionNotice.classList.add('hidden');
+
+      if (navigator.vibrate) {
+        try { navigator.vibrate([40]); } catch (e) {}
+      }
+    }
+
+    function setBuzzerWinner(ms) {
+      currentBuzzerState = 'winner';
+      mainBuzzerBtn.className = 'big-buzzer state-winner';
+      mainBuzzerBtn.disabled = true;
+      buzzerIcon.textContent = '🎉';
+      buzzerLabel.textContent = '¡TU TURNO!';
+      promptStatus.textContent = '¡Pulsaste primero! Justifica tu respuesta en voz alta...';
+
+      const secs = (ms / 1000).toFixed(2);
+      reactionText.textContent = `Tiempo de reacción: ${secs}s`;
+      reactionNotice.classList.remove('hidden');
+    }
+
+    function setBuzzerLocked(msg) {
+      currentBuzzerState = 'locked';
+      mainBuzzerBtn.className = 'big-buzzer state-locked';
+      mainBuzzerBtn.disabled = true;
+      buzzerIcon.textContent = '🔒';
+      buzzerLabel.textContent = 'BLOQUEADO';
+      promptStatus.textContent = msg;
+      reactionNotice.classList.add('hidden');
+    }
+  </script>
+</body>
+</html>

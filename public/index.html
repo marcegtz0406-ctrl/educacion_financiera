@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jeopardy: Educación Financiera - Estudio A</title>
+  <link rel="stylesheet" href="host.css">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Top Navigation Header -->
+    <header class="top-header">
+      <div class="header-brand">
+        <!-- Logo UACM superior izquierdo -->
+        <img src="/img/logo-uacm.png" alt="Logo UACM" class="header-logo logo-uacm" id="logo-uacm">
+        <div class="title-area">
+          <span class="game-badge">🎬 EL SET DE CINE: ACTIVACIÓN INTERACTIVA</span>
+          <h1>JEOPARDY: EDUCACIÓN FINANCIERA - ESTUDIO A</h1>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Logo Coordinación Académica en header -->
+        <img src="/img/logo-ca.png" alt="Logo Coordinación Académica" class="header-logo logo-ca" id="logo-ca">
+        <button id="btn-show-qr" class="btn btn-primary" title="Mostrar Código QR para conectar celulares">
+          📱 Código QR
+        </button>
+        <button id="btn-copy-link" class="btn btn-info" title="Copiar enlace para celular o chat">
+          📋 Copiar Link
+        </button>
+        <button id="btn-final-jeopardy" class="btn btn-final" title="Ronda Final Jeopardy">
+          🏆 Final Jeopardy
+        </button>
+        <button id="btn-end-game" class="btn btn-podium" title="Finalizar partida y ver Podio">
+          👑 Podio y Ganador
+        </button>
+        <button id="btn-sound-toggle" class="btn btn-icon" title="Silenciar / Activar sonido FX">
+          🔊
+        </button>
+        <button id="btn-fullscreen" class="btn btn-icon" title="Pantalla Completa">
+          ⛶
+        </button>
+        <button id="btn-reset" class="btn btn-icon btn-danger" title="Reiniciar Tablero y Puntos">
+          🔄
+        </button>
+      </div>
+    </header>
+
+    <!-- Connection Bar -->
+    <div class="connection-bar">
+      <div class="conn-item">
+        <span class="conn-dot"></span>
+        <span id="conn-status-text">Conectando al servidor...</span>
+      </div>
+      <div class="conn-item">
+        <span>👥 Participantes registrados: <strong id="team-count">0</strong></span>
+      </div>
+      <div class="conn-item url-display">
+        <span>Link para celulares: <strong id="active-url-text" title="Clic para copiar">Cargando enlace...</strong></span>
+      </div>
+    </div>
+
+    <!-- Main Jeopardy Board -->
+    <main class="board-container">
+      <div class="board-grid" id="board-grid">
+        <!-- Generado dinámicamente desde host.js -->
+      </div>
+    </main>
+
+    <!-- Bottom Scoreboard -->
+    <footer class="scoreboard-footer">
+      <div class="scoreboard-title">MARCADOR EN VIVO:</div>
+      <div class="teams-container" id="teams-container">
+        <div class="empty-teams-msg">Esperando a que los participantes escaneen el código QR...</div>
+      </div>
+    </footer>
+
+    <!-- MODAL INICIAL DE INSTRUCCIONES (Abre automáticamente al cargar la página) -->
+    <div id="intro-modal" class="modal-overlay">
+      <div class="modal-content intro-modal-box">
+        <div class="intro-header">
+          <h2>🎬 Reglas de Educación Financiera</h2>
+          <p class="intro-lead">¡Bienvenidos a la producción! Antes de comenzar el juego, recuerda la diferencia estratégica entre ambas decisiones:</p>
+        </div>
+
+        <div class="intro-branches">
+          <!-- Bloque 1 (Rojo): Branch A -->
+          <div class="branch-block branch-block-red">
+            <div class="branch-icon">⚠️</div>
+            <div class="branch-content">
+              <h3>Branch A: Gastar en Deseos e Impulsos</h3>
+              <p>Priorizar gustos irrelevantes antes de asegurar compromisos básicos genera inestabilidad, riesgo de quiebra y frena el crecimiento.</p>
+            </div>
+          </div>
+
+          <!-- Bloque 2 (Verde): Branch B -->
+          <div class="branch-block branch-block-green">
+            <div class="branch-icon">✅</div>
+            <div class="branch-content">
+              <h3>Branch B: Cubrir Necesidades Básicas y Estabilidad</h3>
+              <p>Asegurar primero lo esencial otorga disciplina y liquidez para reinvertir con seguridad y hacer sostenible el proyecto.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="intro-footer">
+          <button id="btn-start-game" class="btn btn-start-game">
+            ¡Entendido, Iniciar Juego! 🚀
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE PREGUNTAS Y VOZ -->
+    <div id="question-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <span id="modal-category" class="badge-category">Categoría</span>
+          <span id="modal-points" class="badge-points">$100</span>
+        </div>
+
+        <div class="modal-body">
+          <!-- Pregunta -->
+          <p id="modal-question-text" class="question-text">Texto de la pregunta...</p>
+
+          <!-- Ambas opciones estratégicas (Branch B vs Branch A) -->
+          <div class="strategic-options-container">
+            <div class="strategic-options-title">Guía de Decisión Estratégica en Rodaje</div>
+            <div class="strategic-grid">
+              <div class="strategic-card strategic-card-green">
+                <strong>✅ Opción A (Branch B - Necesidad Básica):</strong>
+                <span id="modal-branch-b-text">Invertir en necesidades operativas básicas...</span>
+              </div>
+              <div class="strategic-card strategic-card-red">
+                <strong>⚠️ Opción B (Branch A - Deseo Superficial):</strong>
+                <span id="modal-branch-a-text">Gastar en lujos y deseos superficiales...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Banner de estado del buzzer -->
+          <div id="buzzer-status-banner" class="buzzer-banner state-idle">
+            <div class="buzzer-status-icon">⏸️</div>
+            <div class="buzzer-status-info">
+              <h3 id="buzzer-headline">Buzzer en Espera</h3>
+              <p id="buzzer-subtext">Lee el dilema en voz alta y presiona "Activar Buzzer".</p>
+            </div>
+            <div id="buzzer-reaction-time" class="reaction-badge hidden">0.00s</div>
+          </div>
+
+          <!-- Respuesta correcta y guía docente (Silenciosa al presionar Ver Respuesta) -->
+          <div id="teacher-guide-box" class="guide-box hidden">
+            <div class="guide-header">
+              <strong>💡 Respuesta correcta explicada:</strong>
+            </div>
+            <p id="modal-answer-text" class="answer-text"></p>
+            <div class="guide-footer">
+              <strong>📖 Guía para el docente:</strong> <span id="modal-guide-text"></span>
+            </div>
+          </div>
+
+          <!-- Caja de Reflexión IA (Leída en voz alta con Web Speech API) -->
+          <div id="ai-reflection-box" class="ai-reflection-box hidden">
+            <div class="ai-reflection-header">
+              <span>🤖 Reflexión IA (Pedagógica):</span>
+              <span id="speaking-indicator" class="speaking-indicator hidden">🔊 Hablando...</span>
+            </div>
+            <p id="modal-reflection-text" class="ai-reflection-text"></p>
+          </div>
+        </div>
+
+        <!-- Controles para el docente -->
+        <div class="modal-controls">
+          <button id="btn-activate-buzzer" class="btn btn-action btn-activate">
+            ⚡ Activar Buzzer <span class="hotkey">[Espacio]</span>
+          </button>
+          <!-- Botones siempre habilitados para el docente -->
+          <button id="btn-correct" class="btn btn-action btn-correct">
+            ✅ ¡Correcto! <span class="hotkey">[C]</span>
+          </button>
+          <button id="btn-incorrect" class="btn btn-action btn-incorrect">
+            ❌ Incorrecto <span class="hotkey">[X]</span>
+          </button>
+          <!-- Botón Ver Respuesta: En silencio -->
+          <button id="btn-toggle-answer" class="btn btn-action btn-reveal">
+            👁️ Ver Respuesta <span class="hotkey">[R]</span>
+          </button>
+          <!-- Botón Reflexión IA: Con voz en español latino -->
+          <button id="btn-ia-reflection" class="btn btn-action btn-ia">
+            🤖 Reflexión IA
+          </button>
+          <!-- Botón Volver al Tablero: Cierra modal y ejecuta window.speechSynthesis.cancel() -->
+          <button id="btn-close-modal" class="btn btn-action btn-close">
+            Volver al Tablero <span class="hotkey">[Esc]</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CÓDIGO QR -->
+    <div id="qr-modal" class="modal-overlay hidden">
+      <div class="modal-content qr-modal-box">
+        <h2>📱 Conéctate desde tu Celular</h2>
+        <p>Apunta con la cámara de tu smartphone para abrir el pulsador:</p>
+        <div class="qr-image-wrapper">
+          <img id="qr-code-img" src="" alt="Código QR Pulsador Móvil">
+        </div>
+        <div class="qr-url-box">
+          <input type="text" id="qr-url-input" readonly>
+          <button id="btn-copy-qr-url" class="btn btn-primary">Copiar</button>
+        </div>
+        <button id="btn-close-qr" class="btn btn-action btn-close">Cerrar</button>
+      </div>
+    </div>
+
+    <!-- MODAL FINAL JEOPARDY -->
+    <div id="final-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <span class="badge-category">🏆 RONDA DEFINITIVA</span>
+          <span class="badge-points">500 PTS</span>
+        </div>
+        <div class="modal-body">
+          <p id="final-question-text" class="question-text"></p>
+          <div class="strategic-options-container">
+            <div class="strategic-options-title">Dilema de Corte Final</div>
+            <div class="strategic-grid">
+              <div class="strategic-card strategic-card-green">
+                <strong>✅ Branch B (Estabilidad y Disciplina):</strong>
+                <span id="final-branch-b-text"></span>
+              </div>
+              <div class="strategic-card strategic-card-red">
+                <strong>⚠️ Branch A (Riesgo e Impulsividad):</strong>
+                <span id="final-branch-a-text"></span>
+              </div>
+            </div>
+          </div>
+          <div id="final-guide-box" class="guide-box hidden">
+            <div class="guide-header"><strong>💡 Respuesta Esperada:</strong></div>
+            <p id="final-answer-text" class="answer-text"></p>
+            <div class="guide-footer">
+              <strong>📖 Guía docente:</strong> <span id="final-guide-text"></span>
+            </div>
+          </div>
+          <div id="final-reflection-box" class="ai-reflection-box hidden">
+            <div class="ai-reflection-header">
+              <span>🤖 Reflexión IA:</span>
+              <span id="final-speaking-indicator" class="speaking-indicator hidden">🔊 Hablando...</span>
+            </div>
+            <p id="final-reflection-text" class="ai-reflection-text"></p>
+          </div>
+        </div>
+        <div class="modal-controls">
+          <button id="btn-final-activate" class="btn btn-action btn-activate">⚡ Activar Buzzer</button>
+          <button id="btn-final-correct" class="btn btn-action btn-correct">✅ ¡Correcto!</button>
+          <button id="btn-final-incorrect" class="btn btn-action btn-incorrect">❌ Incorrecto</button>
+          <button id="btn-final-reveal" class="btn btn-action btn-reveal">👁️ Ver Respuesta</button>
+          <button id="btn-final-ia" class="btn btn-action btn-ia">🤖 Reflexión IA</button>
+          <button id="btn-close-final" class="btn btn-action btn-close">Volver al Tablero</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL PODIO DE CAMPEONES -->
+    <div id="podium-modal" class="modal-overlay hidden">
+      <canvas id="confetti-canvas"></canvas>
+      <div class="modal-content podium-modal-box">
+        <div class="podium-header">
+          <div class="crown-icon">👑</div>
+          <h2>¡PODIO DE CAMPEONES!</h2>
+          <p>Estudio A: Educación Financiera - La Película de tu Vida</p>
+        </div>
+
+        <div class="podium-body">
+          <div class="podium-stage" id="podium-stage"></div>
+          <div class="other-teams-list" id="other-teams-list"></div>
+        </div>
+
+        <div class="modal-controls">
+          <button id="btn-close-podium" class="btn btn-action btn-close">Cerrar Podio</button>
+          <button id="btn-new-game" class="btn btn-action btn-primary">🔄 Nueva Partida</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="host.js"></script>
+</body>
+</html>
